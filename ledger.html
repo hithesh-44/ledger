@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ledger">
+<title>Ledger</title>
+<style>
+  :root{
+    --bg:#0D1420;
+    --surface:#141D30;
+    --surface-2:#1B2740;
+    --border:#26314D;
+    --text:#E7ECF5;
+    --muted:#8A96B0;
+    --accent:#C9A227;
+    --accent-soft:rgba(201,162,39,0.14);
+    --good:#4FD1C5;
+    --good-soft:rgba(79,209,197,0.14);
+    --danger:#C1543A;
+    --danger-soft:rgba(193,84,58,0.14);
+    --radius:14px;
+    --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Menlo", monospace;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--text); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased; overscroll-behavior:none;
+    padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
+  }
+  #app{max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
+
+  /* ===== Top bar ===== */
+  header.topbar{
+    padding:18px 20px 14px; display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom:1px solid var(--border);
+  }
+  header.topbar .brand{font-family:var(--serif); font-size:22px; font-weight:600; letter-spacing:0.02em;}
+  header.topbar .brand small{display:block; font-family:var(--sans); font-size:11px; color:var(--muted); font-weight:400; letter-spacing:0.08em; text-transform:uppercase; margin-top:2px;}
+  header.topbar .clock{font-family:var(--mono); font-size:13px; color:var(--muted); text-align:right;}
+  header.topbar .clock .date{color:var(--text); display:block; font-size:13px;}
+
+  main{flex:1; overflow-y:auto; padding:16px 16px 100px;}
+  section.tab{display:none;}
+  section.tab.active{display:block; animation:fade .18s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+
+  h2.section-title{font-family:var(--serif); font-size:18px; font-weight:600; margin:4px 0 12px; display:flex; align-items:center; justify-content:space-between;}
+  h2.section-title .count{font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:400;}
+
+  .empty{
+    border:1px dashed var(--border); border-radius:var(--radius); padding:28px 16px; text-align:center;
+    color:var(--muted); font-size:14px; line-height:1.5;
+  }
+  .empty b{color:var(--text); display:block; font-family:var(--serif); font-size:16px; margin-bottom:4px;}
+
+  /* ===== Cards ===== */
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 14px; margin-bottom:10px;
+  }
+  .card-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .card-title{font-size:15px; font-weight:600;}
+  .card-sub{font-size:12px; color:var(--muted); margin-top:2px;}
+  .icon-btn{
+    background:none; border:none; color:var(--muted); font-size:18px; padding:4px 6px; cursor:pointer; line-height:1;
+  }
+  .icon-btn:active{color:var(--text);}
+
+  /* streak dots (week strip) */
+  .week-strip{display:flex; gap:6px; margin-top:10px;}
+  .dot{
+    width:28px; height:28px; border-radius:8px; border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:10px; color:var(--muted);
+    background:var(--surface-2); flex-shrink:0;
+  }
+  .dot.done{background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:700;}
+  .dot.today{border-width:2px; border-color:var(--muted);}
+  .dot.today.done{border-color:var(--accent);}
+  .dot.future{opacity:0.35; pointer-events:none;}
+  .streak-num{font-family:var(--mono); font-size:13px; color:var(--accent); font-weight:600;}
+
+  /* schedule */
+  .day-heading{font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin:18px 0 8px;}
+  .day-heading:first-child{margin-top:0;}
+  .sched-item{display:flex; gap:12px; align-items:flex-start;}
+  .sched-time{font-family:var(--mono); font-size:13px; color:var(--accent); min-width:52px; padding-top:1px;}
+  .sched-body{flex:1;}
+  .sched-title{font-size:14px; font-weight:600;}
+  .sched-note{font-size:12px; color:var(--muted); margin-top:2px;}
+  .bell{font-size:14px; opacity:0.9;}
+  .bell.off{opacity:0.25;}
+
+  /* notes */
+  .note-card{cursor:pointer;}
+  .note-title{font-size:15px; font-weight:600;}
+  .note-snippet{font-size:12px; color:var(--muted); margin-top:4px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
+  .note-meta{font-family:var(--mono); font-size:10px; color:var(--muted); margin-top:8px;}
+  .pin{color:var(--accent); font-size:11px; font-family:var(--mono);}
+
+  /* settings */
+  .setting-row{display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid var(--border);}
+  .setting-row:last-child{border-bottom:none;}
+  .setting-label{font-size:14px; font-weight:600;}
+  .setting-sub{font-size:12px; color:var(--muted); margin-top:2px; max-width:320px;}
+  .status-pill{font-family:var(--mono); font-size:11px; padding:4px 10px; border-radius:20px; border:1px solid var(--border); color:var(--muted);}
+  .status-pill.on{color:var(--good); border-color:var(--good); background:var(--good-soft);}
+  .status-pill.off{color:var(--danger); border-color:var(--danger); background:var(--danger-soft);}
+
+  /* buttons */
+  .btn{
+    font-family:var(--sans); font-size:14px; font-weight:600; border-radius:10px; border:1px solid var(--border);
+    background:var(--surface-2); color:var(--text); padding:9px 14px; cursor:pointer;
+  }
+  .btn:active{background:var(--border);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#1B1400;}
+  .btn.danger{background:transparent; border-color:var(--danger); color:var(--danger);}
+  .btn.block{width:100%;}
+  .fab{
+    position:fixed; right:calc(20px + env(safe-area-inset-right)); bottom:calc(92px + env(safe-area-inset-bottom));
+    width:52px; height:52px; border-radius:50%; background:var(--accent); color:#1B1400; font-size:26px;
+    border:none; box-shadow:0 8px 20px rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; z-index:20; max-width:520px;
+  }
+  .fab:active{transform:scale(0.94);}
+
+  /* bottom tab bar */
+  nav.tabbar{
+    position:fixed; left:0; right:0; bottom:0; background:rgba(13,20,32,0.92); backdrop-filter:blur(14px);
+    border-top:1px solid var(--border); display:flex; padding-bottom:env(safe-area-inset-bottom); z-index:10;
+  }
+  nav.tabbar .wrap{max-width:520px; margin:0 auto; display:flex; width:100%;}
+  nav.tabbar button{
+    flex:1; background:none; border:none; color:var(--muted); padding:10px 4px 8px; font-family:var(--sans);
+    font-size:10.5px; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; letter-spacing:0.02em;
+  }
+  nav.tabbar button svg{width:22px; height:22px;}
+  nav.tabbar button.active{color:var(--accent);}
+  nav.tabbar button.active svg{filter:drop-shadow(0 0 6px var(--accent-soft));}
+
+  /* modal / sheet */
+  .sheet-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:30; display:none; align-items:flex-end;
+  }
+  .sheet-backdrop.open{display:flex;}
+  .sheet{
+    background:var(--surface); border-radius:20px 20px 0 0; padding:18px 18px calc(24px + env(safe-area-inset-bottom));
+    width:100%; max-width:520px; margin:0 auto; max-height:88vh; overflow-y:auto;
+    border-top:1px solid var(--border);
+  }
+  .sheet h3{font-family:var(--serif); font-size:18px; margin:2px 0 16px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:6px;}
+  .field input, .field select, .field textarea{
+    width:100%; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; color:var(--text);
+    padding:11px 12px; font-family:var(--sans); font-size:15px;
+  }
+  .field textarea{resize:vertical; min-height:90px; font-family:var(--sans);}
+  .field.row{display:flex; align-items:center; justify-content:space-between; flex-direction:row;}
+  .field.row label{margin:0;}
+  .toggle{
+    width:46px; height:27px; border-radius:20px; background:var(--surface-2); border:1px solid var(--border);
+    position:relative; cursor:pointer; flex-shrink:0;
+  }
+  .toggle .knob{position:absolute; top:2px; left:2px; width:21px; height:21px; border-radius:50%; background:var(--muted); transition:.15s;}
+  .toggle.on{background:var(--accent-soft); border-color:var(--accent);}
+  .toggle.on .knob{transform:translateX(19px); background:var(--accent);}
+  .daypick{display:flex; gap:6px; flex-wrap:wrap;}
+  .daypick span{
+    padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); font-size:12px;
+    font-family:var(--mono); cursor:pointer; color:var(--muted);
+  }
+  .daypick span.sel{background:var(--accent-soft); border-color:var(--accent); color:var(--accent);}
+  .sheet-actions{display:flex; gap:10px; margin-top:6px;}
+  .sheet-actions .btn{flex:1;}
+
+  .toast{
+    position:fixed; top:calc(14px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text); padding:10px 16px; border-radius:10px;
+    font-size:13px; z-index:50; opacity:0; pointer-events:none; transition:.25s;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(4px);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">Ledger<small>personal log</small></div>
+    <div class="clock"><span class="date" id="clockDate">—</span><span id="clockTime">—</span></div>
+  </header>
+
+  <main>
+
+    <!-- HABITS -->
+    <section class="tab active" data-tab="habits">
+      <h2 class="section-title">Habits <span class="count" id="habitsCount"></span></h2>
+      <div id="habitsList"></div>
+    </section>
+
+    <!-- SCHEDULE -->
+    <section class="tab" data-tab="schedule">
+      <h2 class="section-title">Time table <span class="count" id="scheduleCount"></span></h2>
+      <div id="scheduleList"></div>
+    </section>
+
+    <!-- NOTES -->
+    <section class="tab" data-tab="notes">
+      <h2 class="section-title">Notes <span class="count" id="notesCount"></span></h2>
+      <div id="notesList"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="tab" data-tab="settings">
+      <h2 class="section-title">Settings</h2>
+
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Notifications</div>
+            <div class="setting-sub">Needed for habit &amp; schedule reminders while Ledger is open or recently backgrounded.</div>
+          </div>
+          <span class="status-pill" id="notifPill">checking</span>
+        </div>
+        <button class="btn block" id="notifBtn" style="margin-top:10px;">Enable notifications</button>
+      </div>
+
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Add to Home Screen</div>
+            <div class="setting-sub">In Safari: Share button → Add to Home Screen. Ledger then opens full-screen and keeps your data.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Export data</div>
+            <div class="setting-sub">Download everything as a JSON file — your only backup, since nothing syncs automatically.</div>
+          </div>
+        </div>
+        <button class="btn block" id="exportBtn" style="margin-top:10px;">Export backup</button>
+      </div>
+
+      <div class="card">
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Import data</div>
+            <div class="setting-sub">Restore from a previously exported backup file. This replaces everything currently stored.</div>
+          </div>
+        </div>
+        <input type="file" id="importFile" accept="application/json" style="display:none;">
+        <button class="btn block" id="importBtn" style="margin-top:10px;">Import backup</button>
+      </div>
+
+      <div class="card">
+        <div class="setting-sub" style="max-width:none;">
+          Everything in Ledger is stored only in this browser, on this phone. Nothing is sent anywhere. Clearing Safari's website data or deleting Ledger from your Home Screen can erase it — export a backup periodically.
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <button class="fab" id="fab">+</button>
+
+  <nav class="tabbar">
+    <div class="wrap">
+      <button class="tabbtn active" data-tab="habits">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+        Habits
+      </button>
+      <button class="tabbtn" data-tab="schedule">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        Schedule
+      </button>
+      <button class="tabbtn" data-tab="notes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l5 5v13H6z"/><path d="M15 3v5h5M9 13h6M9 17h6"/></svg>
+        Notes
+      </button>
+      <button class="tabbtn" data-tab="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.55 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09a1.7 1.7 0 001.55-1 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34H9a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87V9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.55 1z"/></svg>
+        Settings
+      </button>
+    </div>
+  </nav>
+
+</div>
+
+<div class="sheet-backdrop" id="sheetBackdrop">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= STATE + STORAGE ================= */
+  const STORE_KEY = "ledger_data_v1";
+  const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const DAY_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+  function todayStr(d){
+    d = d || new Date();
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  }
+  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORE_KEY);
+      if(raw) return JSON.parse(raw);
+    }catch(e){ console.warn("Ledger: could not read storage", e); }
+    return { habits: [], schedule: [], notes: [] };
+  }
+  let state = loadState();
+
+  function save(){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    catch(e){ toast("Couldn't save — storage may be full."); }
+    scheduleAllReminders();
+  }
+
+  /* ================= TOAST ================= */
+  let toastTimer;
+  function toast(msg){
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>el.classList.remove("show"), 2200);
+  }
+
+  /* ================= CLOCK ================= */
+  function tickClock(){
+    const now = new Date();
+    document.getElementById("clockDate").textContent = now.toLocaleDateString(undefined,{weekday:"short", month:"short", day:"numeric"});
+    document.getElementById("clockTime").textContent = now.toLocaleTimeString(undefined,{hour:"2-digit", minute:"2-digit"});
+  }
+  tickClock();
+  setInterval(tickClock, 15000);
+
+  /* ================= TABS ================= */
+  const tabs = document.querySelectorAll(".tab");
+  const tabBtns = document.querySelectorAll(".tabbtn");
+  function showTab(name){
+    tabs.forEach(t=>t.classList.toggle("active", t.dataset.tab===name));
+    tabBtns.forEach(b=>b.classList.toggle("active", b.dataset.tab===name));
+    document.getElementById("fab").style.display = name==="settings" ? "none":"flex";
+    renderAll();
+  }
+  tabBtns.forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
+
+  function activeTab(){
+    return document.querySelector(".tabbtn.active").dataset.tab;
+  }
+
+  /* ================= SHEET (modal) ================= */
+  const sheetBackdrop = document.getElementById("sheetBackdrop");
+  const sheetEl = document.getElementById("sheet");
+  function openSheet(html){
+    sheetEl.innerHTML = html;
+    sheetBackdrop.classList.add("open");
+  }
+  function closeSheet(){
+    sheetBackdrop.classList.remove("open");
+    sheetEl.innerHTML = "";
+  }
+  sheetBackdrop.addEventListener("click",(e)=>{ if(e.target===sheetBackdrop) closeSheet(); });
+
+  /* ================= FAB ================= */
+  document.getElementById("fab").addEventListener("click", ()=>{
+    const t = activeTab();
+    if(t==="habits") openHabitForm();
+    else if(t==="schedule") openScheduleForm();
+    else if(t==="notes") openNoteForm();
+  });
+
+  /* ================================================================
+     HABITS
+     ================================================================ */
+  function last7Dates(){
+    const arr = [];
+    for(let i=6;i>=0;i--){
+      const d = new Date();
+      d.setDate(d.getDate()-i);
+      arr.push(d);
+    }
+    return arr;
+  }
+  function currentStreak(habit){
+    let streak = 0;
+    let d = new Date();
+    while(true){
+      const key = todayStr(d);
+      if(habit.log[key]){ streak++; d.setDate(d.getDate()-1); }
+      else break;
+    }
+    return streak;
+  }
+
+  function renderHabits(){
+    const list = document.getElementById("habitsList");
+    document.getElementById("habitsCount").textContent = state.habits.length ? state.habits.length : "";
+    if(!state.habits.length){
+      list.innerHTML = `<div class="empty"><b>No habits yet</b>Tap + to add the first thing you want to track daily.</div>`;
+      return;
+    }
+    const days = last7Dates();
+    const tKey = todayStr();
+    list.innerHTML = state.habits.map(h=>{
+      const streak = currentStreak(h);
+      const dots = days.map(d=>{
+        const key = todayStr(d);
+        const done = !!h.log[key];
+        const isToday = key===tKey;
+        const label = DAY_NAMES[d.getDay()][0];
+        return `<div class="dot ${done?"done":""} ${isToday?"today":""}" data-habit="${h.id}" data-date="${key}">${label}</div>`;
+      }).join("");
+      return `
+      <div class="card">
+        <div class="card-row">
+          <div>
+            <div class="card-title">${escapeHtml(h.name)}</div>
+            <div class="card-sub">${h.reminder ? "reminder "+h.reminder : "no reminder"} · <span class="streak-num">${streak} day${streak===1?"":"s"}</span></div>
+          </div>
+          <button class="icon-btn" data-del-habit="${h.id}">✕</button>
+        </div>
+        <div class="week-strip">${dots}</div>
+      </div>`;
+    }).join("");
+
+    list.querySelectorAll("[data-habit]").forEach(dot=>{
+      dot.addEventListener("click", ()=>{
+        const hid = dot.dataset.habit, date = dot.dataset.date;
+        const h = state.habits.find(x=>x.id===hid);
+        if(!h) return;
+        if(h.log[date]) delete h.log[date]; else h.log[date]=true;
+        save(); renderHabits();
+      });
+    });
+    list.querySelectorAll("[data-del-habit]").forEach(btn=>{
+      btn.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        if(confirm("Delete this habit and its history?")){
+          state.habits = state.habits.filter(h=>h.id!==btn.dataset.delHabit);
+          save(); renderHabits();
+        }
+      });
+    });
+  }
+
+  function openHabitForm(){
+    openSheet(`
+      <h3>New habit</h3>
+      <div class="field"><label>Name</label><input id="fHabitName" placeholder="e.g. Read 20 minutes" autofocus></div>
+      <div class="field">
+        <label>Daily reminder (optional)</label>
+        <input id="fHabitTime" type="time">
+      </div>
+      <div class="sheet-actions">
+        <button class="btn" id="fCancel">Cancel</button>
+        <button class="btn primary" id="fSave">Add habit</button>
+      </div>
+    `);
+    document.getElementById("fCancel").addEventListener("click", closeSheet);
+    document.getElementById("fSave").addEventListener("click", ()=>{
+      const name = document.getElementById("fHabitName").value.trim();
+      if(!name){ toast("Give the habit a name."); return; }
+      const time = document.getElementById("fHabitTime").value;
+      state.habits.push({ id:uid(), name, reminder: time||null, log:{}, createdAt: Date.now() });
+      save(); closeSheet(); renderHabits();
+      toast("Habit added");
+    });
+  }
+
+  /* ================================================================
+     SCHEDULE / TIME TABLE
+     ================================================================ */
+  function renderSchedule(){
+    const list = document.getElementById("scheduleList");
+    document.getElementById("scheduleCount").textContent = state.schedule.length ? state.schedule.length : "";
+    if(!state.schedule.length){
+      list.innerHTML = `<div class="empty"><b>Time table is empty</b>Tap + to block out recurring times — meetings, workouts, focus blocks.</div>`;
+      return;
+    }
+    // group by day 0-6, "daily" bucket first
+    const byDay = {};
+    state.schedule.forEach(s=>{
+      const k = s.day;
+      byDay[k] = byDay[k]||[];
+      byDay[k].push(s);
+    });
+    Object.values(byDay).forEach(arr=>arr.sort((a,b)=>a.time.localeCompare(b.time)));
+
+    const order = ["daily",0,1,2,3,4,5,6];
+    let html = "";
+    order.forEach(k=>{
+      if(!byDay[k]) return;
+      const heading = k==="daily" ? "Every day" : DAY_FULL[k];
+      html += `<div class="day-heading">${heading}</div>`;
+      byDay[k].forEach(s=>{
+        html += `
+        <div class="card">
+          <div class="sched-item">
+            <div class="sched-time">${s.time}</div>
+            <div class="sched-body">
+              <div class="sched-title">${escapeHtml(s.title)}</div>
+              ${s.notes ? `<div class="sched-note">${escapeHtml(s.notes)}</div>` : ""}
+            </div>
+            <span class="bell ${s.reminder?"":"off"}">🔔</span>
+            <button class="icon-btn" data-del-sched="${s.id}">✕</button>
+          </div>
+        </div>`;
+      });
+    });
+    list.innerHTML = html;
+    list.querySelectorAll("[data-del-sched]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        if(confirm("Delete this schedule entry?")){
+          state.schedule = state.schedule.filter(s=>s.id!==btn.dataset.delSched);
+          save(); renderSchedule();
+        }
+      });
+    });
+  }
+
+  function openScheduleForm(){
+    openSheet(`
+      <h3>New time table entry</h3>
+      <div class="field"><label>Title</label><input id="fSchedTitle" placeholder="e.g. Gym, Client call" autofocus></div>
+      <div class="field"><label>Time</label><input id="fSchedTime" type="time"></div>
+      <div class="field">
+        <label>Repeats on</label>
+        <div class="daypick" id="fDaypick">
+          <span data-d="daily" class="sel">Daily</span>
+          ${DAY_NAMES.map((d,i)=>`<span data-d="${i}">${d}</span>`).join("")}
+        </div>
+      </div>
+      <div class="field"><label>Notes (optional)</label><textarea id="fSchedNotes" placeholder="Location, agenda, prep..."></textarea></div>
+      <div class="field row">
+        <label>Remind me</label>
+        <div class="toggle on" id="fSchedReminder"><div class="knob"></div></div>
+      </div>
+      <div class="sheet-actions">
+        <button class="btn" id="fCancel">Cancel</button>
+        <button class="btn primary" id="fSave">Add entry</button>
+      </div>
+    `);
+    let selDay = "daily";
+    document.querySelectorAll("#fDaypick span").forEach(sp=>{
+      sp.addEventListener("click", ()=>{
+        document.querySelectorAll("#fDaypick span").forEach(s2=>s2.classList.remove("sel"));
+        sp.classList.add("sel");
+        selDay = sp.dataset.d === "daily" ? "daily" : Number(sp.dataset.d);
+      });
+    });
+    const remToggle = document.getElementById("fSchedReminder");
+    let remOn = true;
+    remToggle.addEventListener("click", ()=>{ remOn = !remOn; remToggle.classList.toggle("on", remOn); });
+
+    document.getElementById("fCancel").addEventListener("click", closeSheet);
+    document.getElementById("fSave").addEventListener("click", ()=>{
+      const title = document.getElementById("fSchedTitle").value.trim();
+      const time = document.getElementById("fSchedTime").value;
+      if(!title || !time){ toast("Add a title and a time."); return; }
+      const notes = document.getElementById("fSchedNotes").value.trim();
+      state.schedule.push({ id:uid(), title, time, day:selDay, notes, reminder:remOn });
+      save(); closeSheet(); renderSchedule();
+      toast("Added to time table");
+    });
+  }
+
+  /* ================================================================
+     NOTES
+     ================================================================ */
+  function renderNotes(){
+    const list = document.getElementById("notesList");
+    document.getElementById("notesCount").textContent = state.notes.length ? state.notes.length : "";
+    if(!state.notes.length){
+      list.innerHTML = `<div class="empty"><b>No notes yet</b>Tap + to write your first note.</div>`;
+      return;
+    }
+    const sorted = [...state.notes].sort((a,b)=>{
+      if(!!b.pinned - !!a.pinned !== 0) return (b.pinned?1:0)-(a.pinned?1:0);
+      return b.updatedAt - a.updatedAt;
+    });
+    list.innerHTML = sorted.map(n=>`
+      <div class="card note-card" data-open-note="${n.id}">
+        <div class="card-row">
+          <div class="note-title">${escapeHtml(n.title || "Untitled")}</div>
+          ${n.pinned ? `<span class="pin">PINNED</span>` : ""}
+        </div>
+        <div class="note-snippet">${escapeHtml(n.body || "")}</div>
+        <div class="note-meta">${new Date(n.updatedAt).toLocaleString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
+      </div>
+    `).join("");
+    list.querySelectorAll("[data-open-note]").forEach(card=>{
+      card.addEventListener("click", ()=>openNoteForm(card.dataset.openNote));
+    });
+  }
+
+  function openNoteForm(id){
+    const existing = id ? state.notes.find(n=>n.id===id) : null;
+    openSheet(`
+      <h3>${existing ? "Edit note" : "New note"}</h3>
+      <div class="field"><label>Title</label><input id="fNoteTitle" value="${existing?escapeAttr(existing.title):""}" placeholder="Title" autofocus></div>
+      <div class="field"><label>Note</label><textarea id="fNoteBody" placeholder="Write here...">${existing?escapeHtml(existing.body):""}</textarea></div>
+      <div class="field row">
+        <label>Pin to top</label>
+        <div class="toggle ${existing&&existing.pinned?"on":""}" id="fNotePin"><div class="knob"></div></div>
+      </div>
+      <div class="sheet-actions">
+        ${existing ? `<button class="btn danger" id="fDelete">Delete</button>` : `<button class="btn" id="fCancel">Cancel</button>`}
+        <button class="btn primary" id="fSave">${existing?"Save":"Add note"}</button>
+      </div>
+    `);
+    let pinned = !!(existing && existing.pinned);
+    const pinToggle = document.getElementById("fNotePin");
+    pinToggle.addEventListener("click", ()=>{ pinned=!pinned; pinToggle.classList.toggle("on", pinned); });
+
+    if(existing){
+      document.getElementById("fDelete").addEventListener("click", ()=>{
+        if(confirm("Delete this note?")){
+          state.notes = state.notes.filter(n=>n.id!==existing.id);
+          save(); closeSheet(); renderNotes();
+        }
+      });
+    } else {
+      document.getElementById("fCancel").addEventListener("click", closeSheet);
+    }
+    document.getElementById("fSave").addEventListener("click", ()=>{
+      const title = document.getElementById("fNoteTitle").value.trim();
+      const body = document.getElementById("fNoteBody").value.trim();
+      if(!title && !body){ toast("Note is empty."); return; }
+      if(existing){
+        existing.title=title; existing.body=body; existing.pinned=pinned; existing.updatedAt=Date.now();
+      } else {
+        state.notes.push({ id:uid(), title, body, pinned, updatedAt:Date.now() });
+      }
+      save(); closeSheet(); renderNotes();
+    });
+  }
+
+  /* ================================================================
+     NOTIFICATIONS
+     ================================================================ */
+  let scheduledTimers = [];
+
+  function refreshNotifPill(){
+    const pill = document.getElementById("notifPill");
+    const btn = document.getElementById("notifBtn");
+    if(!("Notification" in window)){
+      pill.textContent = "unsupported"; pill.className="status-pill off";
+      btn.style.display="none";
+      return;
+    }
+    const perm = Notification.permission;
+    if(perm==="granted"){ pill.textContent="on"; pill.className="status-pill on"; btn.style.display="none"; }
+    else if(perm==="denied"){ pill.textContent="blocked"; pill.className="status-pill off"; btn.style.display="none"; }
+    else { pill.textContent="off"; pill.className="status-pill"; btn.style.display="block"; }
+  }
+  document.getElementById("notifBtn").addEventListener("click", async ()=>{
+    if(!("Notification" in window)){ toast("Notifications aren't supported here."); return; }
+    const perm = await Notification.requestPermission();
+    refreshNotifPill();
+    if(perm==="granted"){ toast("Notifications enabled"); scheduleAllReminders(); }
+    else { toast("Permission not granted"); }
+  });
+
+  function fireNotification(title, body){
+    if("Notification" in window && Notification.permission==="granted"){
+      try{ new Notification(title, { body: body||"", tag: title }); }
+      catch(e){ console.warn(e); }
+    }
+  }
+
+  // Schedules today's remaining reminders using setTimeout.
+  // Note: reliably fires only while this tab/app is open or briefly backgrounded —
+  // iOS Safari does not run background JS, so true background delivery would need
+  // a server-backed Web Push subscription.
+  function scheduleAllReminders(){
+    scheduledTimers.forEach(t=>clearTimeout(t));
+    scheduledTimers = [];
+    if(!("Notification" in window) || Notification.permission!=="granted") return;
+
+    const now = new Date();
+    const todayDow = now.getDay();
+
+    function armAt(hh, mm, title, body){
+      const target = new Date();
+      target.setHours(hh, mm, 0, 0);
+      const ms = target - now;
+      if(ms > 0 && ms < 24*60*60*1000){
+        const t = setTimeout(()=>fireNotification(title, body), ms);
+        scheduledTimers.push(t);
+      }
+    }
+
+    state.habits.forEach(h=>{
+      if(!h.reminder) return;
+      const [hh,mm] = h.reminder.split(":").map(Number);
+      const key = todayStr();
+      if(h.log[key]) return; // already done today, skip nudge
+      armAt(hh, mm, "Habit: "+h.name, "Log it in Ledger");
+    });
+
+    state.schedule.forEach(s=>{
+      if(!s.reminder) return;
+      const matchesToday = s.day==="daily" || s.day===todayDow;
+      if(!matchesToday) return;
+      const [hh,mm] = s.time.split(":").map(Number);
+      armAt(hh, mm, s.title, s.notes||"On today's time table");
+    });
+  }
+
+  // Re-arm shortly after local midnight so tomorrow's reminders get scheduled
+  // if the app happens to stay open.
+  setInterval(()=>{
+    const n = new Date();
+    if(n.getHours()===0 && n.getMinutes()===0){ scheduleAllReminders(); }
+  }, 60*1000);
+
+  /* ================================================================
+     EXPORT / IMPORT
+     ================================================================ */
+  document.getElementById("exportBtn").addEventListener("click", ()=>{
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ledger-backup-"+todayStr()+".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast("Backup downloaded");
+  });
+  document.getElementById("importBtn").addEventListener("click", ()=>{
+    document.getElementById("importFile").click();
+  });
+  document.getElementById("importFile").addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const parsed = JSON.parse(reader.result);
+        if(!parsed || typeof parsed!=="object") throw new Error("bad format");
+        state = {
+          habits: Array.isArray(parsed.habits)?parsed.habits:[],
+          schedule: Array.isArray(parsed.schedule)?parsed.schedule:[],
+          notes: Array.isArray(parsed.notes)?parsed.notes:[]
+        };
+        save(); renderAll();
+        toast("Backup restored");
+      }catch(err){
+        toast("Couldn't read that file.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+
+  /* ================================================================
+     UTIL + INIT
+     ================================================================ */
+  function escapeHtml(str){
+    return String(str||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function escapeAttr(str){ return escapeHtml(str); }
+
+  function renderAll(){
+    renderHabits();
+    renderSchedule();
+    renderNotes();
+    refreshNotifPill();
+  }
+
+  renderAll();
+  scheduleAllReminders();
+
+})();
+</script>
+</body>
+</html>
